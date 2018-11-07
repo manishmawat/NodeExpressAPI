@@ -1,78 +1,66 @@
+// Joi is a package to enforce the validation using schema and object
 const Joi = require('joi'); //it return the class so the name is in pascal notation.
-
+//helmet is a package to enhace the http pipeline and add attribute to the http header
+const helmet = require('helmet');
+//morgan is a package to log the request(type/time-taken/response etc.) on the service
+const morgan = require('morgan');
+//config is a package to access the config settings from the config files in the app
+const config = require('config');
+//debug is a package to enable different type of debugging type, you can handle the type from command prompt.
+const startupDebugger = require('debug')('app:startup');
+const dbDebugger = require('debug')('app:db');
+//express is a package to streamline the routing and middleware
 const express = require('express');
 
+//Project structure - moved the movies related api methods to different file.
+const movies = require('./movies');
+
+//Project structure - moved the single PUG html page api method moved to different file. 
+const pugPage = require('./myHtmlPage');
+
+//Middleware - adding custome middleware in the request pipeline.
+const logger = require('./middleware/logger.js');
 const app = express();
+
+//Setting up the api method paths.
+app.use('/api/movies',movies);
+app.use('/api/myhtml',pugPage);
+
+// Middleware - adding morgan in the express middleware pipeline.
+app.use(morgan('tiny'));
+
+//to expose the folder with static pages.
+app.use(express.static('public'));
+
+console.log('Application name: ' + config.get('name'));
+console.log('Mail server: ' + config.get('mail.host'));
+// to set the password in environment variable, execute the set command on command prompt
+//e.g. />set app_password=123456
+console.log('Your password from the environment variables: ' + config.get('mail.password'));
+
 app.use(express.json());
+app.use(helmet());
+app.use(logger);
+// console.log(app.get('env'));
+// console.log(process.env.NODE_ENV);
 
-let movies = [
-    {id:1, name:'Lagaan', genre:'Drama',actor:'Amir'},
-    {id:2, name:'3 idiot', genre:'Drama',actor:'Amir'},
-    {id:3, name:'Golmaal', genre:'Comedy', actor:'Ajay'}
-];
+if(app.get('env')==='stagging'){
+    startupDebugger('Starting debugging on stagging environment');
+}
 
-// Get method for all the movies
-app.get('/',(req, res) => {
-    res.send(movies);
-});
+function dbWorks(){
+    console.log('Inside db function');
+}
 
-app.get('/api/movies/:id',(req,res) => {
-    const movie = movies.find(m => m.id === parseInt(req.params.id));
-    if(!movie) return res.status(404).send('Movie not found');
-    res.send(movie);
-});
+dbDebugger(setTimeout(
+                        //dbWorks
+                        () => {console.log('Getting db work done.')}
+                        ,1000
+                    ));
 
-app.post('/api/movies', (req, res) => {
-
-    const movie ={
-        id: movies.length+1,
-        name:req.body.name,
-        genre:req.body.genre,
-        actor:req.body.actor
-    };
-
-    const {error} = isValidRequest(req.body);
-    if(error) {
-        return res.send(error.details[0].message);
-    } else{
-        movies.push(movie);
-        return res.send(movie);
-    }
-})
-
-app.put('/api/movies', (req,res) => {
-    const id = req.body.id;
-    let movie = movies.find(m => m.id === parseInt(req.body.id));
-    if(!movie) return res.status(400).send('Incorrect movie details');
-
-    const {error} = isValidRequest(req.body);
-
-    if(error) return res.status(400).send(error.details[0].message);
-
-    movie.name = req.body.name;
-    movie.genre = req.body.genre;
-    movie.actor = req.body.actor;
-
-    res.status(200).send(movie);
-})
-
-
-app.delete('/api/movies/:id', (req,res) => {
-    const movie = movies.find(m => m.id === parseInt(req.params.id));
-    if(!movie) return res.status(400).send('Incorrect movie details');
-    const index = movies.indexOf(movie);
-    movies.splice(index,1);
-    res.status(200).send(movie);
-});
-
-function isValidRequest(message) {
-    const schema = {
-        id: Joi.string().min(1),
-        name:Joi.string().min(3).required(),
-        genre:Joi.string().required().min(3),
-        actor:Joi.string()
-    };
-    return Joi.validate(message, schema);
-};
+// setting up the view engine in app, here I am setting up pug as a view engine.
+app.set('view engine', 'pug');
+//setting up the view filder in app, this is optional setting, by default it is ./views
+app.set('views','./views');
 
 app.listen(3000,() => console.log('Listening on port 3000'));
